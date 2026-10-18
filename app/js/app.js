@@ -2,9 +2,11 @@
 import * as G from './geo.js';
 import * as M from './model.js';
 import * as DB from './db.js';
+import * as S from './stamp.js';
 
 const { tr } = M;
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
+const PRO = false;   // ยังไม่มีระบบ Pro บนเว็บ — รุ่นฟรีใส่ลายน้ำเมื่อรูปมี QR เหมือน Android
 const app = document.getElementById('app');
 
 let data = { sites: [], marks: [] };
@@ -15,6 +17,8 @@ let listSort = 'NEAREST';
 let query = '';
 let map = null;
 let cleanups = [];
+let pickTarget = null;    // หน้าปักบนแผนที่ส่งผลให้ใคร { point, symbol, siteId, apply(p) }
+let tool = null;          // เครื่องมือใส่พิกัดบนรูป { img, blob, opt, title, notes, point, acc, takenAt }
 
 // ---------------------------------------------------------------- เครื่องมือ
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -235,6 +239,7 @@ views.home = () => {
       ${ios ? `<div class="note install">📲 ${tr('ติดตั้งเป็นแอป: กดปุ่ม แชร์ <b>⬆︎</b> ใน Safari แล้วเลือก <b>เพิ่มไปยังหน้าจอโฮม</b>', 'Install: tap Share <b>⬆︎</b> in Safari, then <b>Add to Home Screen</b>')}</div>` : ''}
       <input class="search" type="search" id="q" value="${esc(query)}" placeholder="🔍 ${tr('ค้นหา ชื่อ เลขโฉนด ตำบล…', 'Search name, deed no., area…')}">
       ${results ? `<div class="list">${results.length ? results.map((h) => (h.type === 'site' ? siteRow(h.item) : markRow(h.item))).join('') : `<p class="muted">${tr('ไม่พบ', 'No results')}</p>`}</div>` : `
+      <a class="tile stampcard" href="#/stamp"><span class="sym">📷</span><span><b>${tr('ใส่พิกัด GPS บนรูป', 'Put GPS on a photo')}</b><small>${tr('เลือกรูป ใส่ตำแหน่งและรายละเอียด วางข้อความตรงไหนก็ได้ ใส่ QR นำทาง แล้วแชร์หรือบันทึก', 'Pick a photo, add location and details, place the text anywhere, add a directions QR, then share or save')}</small></span></a>
       <h2 class="ask">${tr('จะเก็บอะไร?', 'What do you want to save?')}</h2>
       <div class="grid">
         <a class="tile land" href="#/sites"><span class="sym">📜</span><b>${tr('โฉนด / ที่ดิน', 'Deeds / land')}</b><i>${counts.SITES || ''}</i></a>
@@ -405,7 +410,8 @@ views.mark = (id) => {
           <a class="btn" href="${G.appleMapsUrl(p)}" target="_blank" rel="noopener">🍎 Apple Maps</a>
         </div>` : `<div class="warn">${tr('ยังไม่มีพิกัด — กดแก้ไขเพื่อใส่ตำแหน่ง', 'No location yet — tap Edit to add one')}</div>`}
       ${mk.notes ? `<div class="card notes">${esc(mk.notes)}</div>` : ''}
-      ${mk.photos.length ? `<div class="photos">${mk.photos.map((ph) => `<figure><img data-media="${esc(ph.file)}" alt=""></figure>`).join('')}</div>` : ''}
+      ${mk.photos.length ? `<div class="photos">${mk.photos.map((ph, i) => `<a href="#/photo/${id}/${i}"><figure><img data-media="${esc(ph.file)}" alt=""><span class="badge">📷</span></figure></a>`).join('')}</div>
+        <p class="small muted">${tr('แตะรูปเพื่อใส่พิกัด / QR นำทาง แล้วแชร์หรือบันทึก', 'Tap a photo to add location / directions QR, then share or save')}</p>` : ''}
       ${mk.voices.length ? `<div class="card">${mk.voices.map((v) => `<audio controls preload="none" data-voice="${esc(v.file)}"></audio>`).join('')}</div>` : ''}
       <div class="row">
         <button class="btn" data-act="sharetext" data-v="${id}">💬 ${tr('ส่งทาง LINE / ข้อความ', 'Share as text')}</button>
@@ -447,7 +453,7 @@ views.edit = () => {
         <p class="coords" id="loc">${p ? `${G.formatCoordinates(p)} ${mk.accuracyMeters != null ? `±${Math.round(mk.accuracyMeters)} m` : tr('(ปักบนแผนที่)', '(placed on map)')}` : tr('ยังไม่มีพิกัด', 'No location yet')}</p>
         <div class="row">
           <button class="btn primary" data-act="gps">📡 ${tr('ใช้ตำแหน่งตอนนี้', 'Use my location')}</button>
-          <a class="btn" href="#/pick">🗺️ ${tr('ปักบนแผนที่', 'Pick on map')}</a>
+          <button class="btn" data-act="pickedit">🗺️ ${tr('ปักบนแผนที่', 'Pick on map')}</button>
           <button class="btn" data-act="paste">📋 ${tr('วางพิกัด', 'Paste coordinates')}</button>
         </div>
         <p class="small muted">${tr('ยืนตรงจุดนั้นแล้วกด "ใช้ตำแหน่งตอนนี้" แอปจะอ่าน GPS ไม่เกิน 15 วินาที แล้วเลือกค่าที่แม่นที่สุด', 'Stand on the spot and tap "Use my location"; it reads GPS for up to 15 s and keeps the most accurate fix')}</p>
@@ -472,22 +478,22 @@ views.edit = () => {
 };
 
 views.pick = () => {
-  if (!editor) return views.home();
-  const mk = editor.mark;
+  if (!pickTarget) return views.home();
+  const t = pickTarget;
   return {
     html: `${header(tr('แตะแผนที่เพื่อปักหมุด', 'Tap the map to place the pin'))}
     <div id="map" class="map full"></div>
     <div class="savebar floating"><button class="btn" data-act="back">${tr('ยกเลิก', 'Cancel')}</button><button class="btn primary" data-act="usepick" disabled id="usepick">✔ ${tr('ใช้จุดนี้', 'Use this point')}</button></div>`,
     mount() {
       map = makeMap(document.getElementById('map'));
-      const site = mk.siteId ? siteById(mk.siteId) : null;
+      const site = t.siteId ? siteById(t.siteId) : null;
       drawMarks(map, site ? M.marksOf(data, site.id) : [], site ? [site] : []);
-      if (M.hasLocation(mk)) map.setView([mk.latitude, mk.longitude], 18);
+      if (t.point) map.setView([t.point.lat, t.point.lon], 18);
       else if (here) map.setView([here.lat, here.lon], 18);
       let marker = null;
       map.on('click', (e) => {
-        editor.pick = { lat: e.latlng.lat, lon: e.latlng.lng };
-        marker ??= L.marker(e.latlng, { icon: emojiIcon(M.KINDS[mk.kind].symbol, 'picked') }).addTo(map);
+        t.picked = { lat: e.latlng.lat, lon: e.latlng.lng };
+        marker ??= L.marker(e.latlng, { icon: emojiIcon(t.symbol, 'picked') }).addTo(map);
         marker.setLatLng(e.latlng);
         document.getElementById('usepick').disabled = false;
       });
@@ -583,6 +589,143 @@ views.import = () => {
   };
 };
 
+// ---------------------------------------------------------------- รูปพร้อมพิกัด
+const stampPanel = (opt, hasPoint) => `
+  <div class="card stamp">
+    <canvas id="preview"></canvas>
+    ${opt.enabled && opt.layout === 'OVERLAY' ? `<p class="small muted">👆 ${tr('แตะบนรูปเพื่อย้ายกล่องข้อความ', 'Tap the photo to move the text box')}</p>` : ''}
+    <label class="switch"><input type="checkbox" data-opt="enabled" ${opt.enabled ? 'checked' : ''}> ${tr('ใส่ข้อความบนรูป', 'Add text to the photo')}</label>
+    ${opt.enabled ? `
+    <div class="chips">${[['OVERLAY', tr('ทับบนรูป', 'On photo')], ['BOTTOM', tr('ขยายด้านล่าง', 'Panel below')], ['SIDE', tr('ขยายด้านข้าง', 'Panel at side')]]
+      .map(([k, t]) => `<button class="chip ${opt.layout === k ? 'on' : ''}" data-layout="${k}">${t}</button>`).join('')}</div>
+    <div class="checks">
+      <label><input type="checkbox" data-opt="label" ${opt.label ? 'checked' : ''}> ${tr('ชื่อ', 'Title')}</label>
+      <label><input type="checkbox" data-opt="coordinates" ${opt.coordinates ? 'checked' : ''}> ${tr('พิกัด', 'Coordinates')}</label>
+      <label><input type="checkbox" data-opt="dateTime" ${opt.dateTime ? 'checked' : ''}> ${tr('วันเวลา', 'Date & time')}</label>
+      <label><input type="checkbox" data-opt="notes" ${opt.notes ? 'checked' : ''}> ${tr('รายละเอียด', 'Details')}</label>
+      <label class="${hasPoint ? '' : 'off'}"><input type="checkbox" data-opt="qr" ${opt.qr ? 'checked' : ''} ${hasPoint ? '' : 'disabled'}> ${tr('QR นำทาง', 'Directions QR')}</label>
+    </div>
+    ${!hasPoint ? `<p class="small muted">${tr('ใส่ตำแหน่งก่อนจึงจะใส่พิกัดและ QR ได้', 'Add a location first to show coordinates and a QR')}</p>` : ''}
+    <label class="field">${tr('ขนาดตัวอักษร', 'Text size')}<input type="range" min="0.6" max="2" step="0.1" value="${opt.scale}" data-range="scale"></label>
+    <label class="field">${tr('ข้อความเพิ่ม (ไม่เกิน 60 ตัว)', 'Extra text (up to 60 characters)')}<input maxlength="60" value="${esc(opt.customText)}" data-text="customText"></label>` : ''}
+    ${!PRO ? `<p class="small muted">${tr('รุ่นทดลองใส่ลายน้ำ "PinKeep Free" เมื่อมี QR', 'Trial version adds a "PinKeep Free" watermark when a QR is shown')}</p>` : ''}
+    <div class="row">
+      <button class="btn primary" data-act="shareimg">📤 ${tr('แชร์ / บันทึกรูป', 'Share / save photo')}</button>
+      <button class="btn" data-act="downloadimg">⬇️ ${tr('ดาวน์โหลด', 'Download')}</button>
+    </div>
+  </div>`;
+
+/** ผูกปุ่มของแผงรูป · getImg/getInfo คืนรูปและข้อมูลล่าสุด · changed() เรียกเมื่อตัวเลือกเปลี่ยน (rerender = ต้องวาดหน้าใหม่) */
+function bindStamp(opt, getImg, getInfo, changed) {
+  const draw = () => {
+    const img = getImg(); if (!img) return;
+    const out = S.render(img, opt, getInfo());
+    const pv = document.getElementById('preview');
+    pv.width = out.width; pv.height = out.height;
+    pv.getContext('2d').drawImage(out, 0, 0);
+  };
+  app.querySelectorAll('[data-opt]').forEach((el) => el.addEventListener('change', () => { opt[el.dataset.opt] = el.checked; changed(true); }));
+  app.querySelectorAll('[data-layout]').forEach((el) => el.addEventListener('click', () => { opt.layout = el.dataset.layout; changed(true); }));
+  app.querySelector('[data-range]')?.addEventListener('input', (e) => { opt.scale = Number(e.target.value); draw(); changed(false); });
+  app.querySelector('[data-text]')?.addEventListener('input', (e) => { opt.customText = e.target.value; draw(); changed(false); });
+  document.getElementById('preview').addEventListener('click', (e) => {
+    if (!opt.enabled || opt.layout !== 'OVERLAY') return;
+    const r = e.currentTarget.getBoundingClientRect();
+    opt.x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    opt.y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    opt.corner = opt.x < 0.5 ? (opt.y < 0.5 ? 'TOP_LEFT' : 'BOTTOM_LEFT') : (opt.y < 0.5 ? 'TOP_RIGHT' : 'BOTTOM_RIGHT');
+    draw(); changed(false);
+  });
+  stampOut = () => S.toJpeg(S.render(getImg(), opt, getInfo()));
+  draw();
+}
+let stampOut = null;   // สร้างไฟล์ JPEG ของรูปที่แสดงอยู่
+
+const imgFileName = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `PinKeep-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.jpg`; };
+
+async function shareImage(download) {
+  const blob = await stampOut?.(); if (!blob) return;
+  const file = new File([blob], imgFileName(), { type: 'image/jpeg' });
+  if (!download && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = file.name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+
+const stampTitle = (kind, label, siteName) => [M.KINDS[kind].label(), label, siteName].filter(Boolean).join(' · ');
+
+views.photo = (markId, index) => {
+  const mk = markById(markId), ph = mk?.photos[Number(index)];
+  if (!ph) return views.home();
+  const site = mk.siteId ? siteById(mk.siteId) : null;
+  const point = M.hasLocation(mk) ? M.pointOf(mk) : null;
+  let img = null, timer;
+  return {
+    html: `${header(mk.label)}<main>${stampPanel(ph.stamp, !!point)}</main>`,
+    async mount() {
+      img = await S.loadImage(await DB.getMedia(ph.file));
+      bindStamp(ph.stamp, () => img, () => ({ title: stampTitle(mk.kind, mk.label, site?.name), point, acc: mk.accuracyMeters, takenAt: ph.takenAt, notes: mk.notes, watermark: PRO ? null : S.WATERMARK }),
+        (rerender) => { clearTimeout(timer); timer = setTimeout(save, 400); if (rerender) render(); });
+    },
+  };
+};
+
+views.stamp = () => {
+  if (!tool?.img) {
+    return {
+      html: `${header(tr('ใส่พิกัด GPS บนรูป', 'Put GPS on a photo'))}
+      <main>
+        <p class="muted">${tr('เลือกรูป แล้วใส่ตำแหน่ง ชื่อ รายละเอียด และ QR นำทาง วางข้อความทับบนรูป หรือขยายแถบด้านล่าง/ด้านข้างก็ได้', 'Pick a photo, then add location, title, details and a directions QR — on the photo, or in a panel below or beside it')}</p>
+        <div class="row">
+          <label class="btn primary">📷 ${tr('ถ่ายรูป', 'Take photo')}<input type="file" accept="image/*" capture="environment" hidden class="toolpick"></label>
+          <label class="btn">🖼️ ${tr('จากคลังรูป', 'From photos')}<input type="file" accept="image/*" hidden class="toolpick"></label>
+        </div>
+      </main>`,
+      mount() {
+        app.querySelectorAll('.toolpick').forEach((el) => el.addEventListener('change', async (e) => {
+          const f = e.target.files[0]; if (!f) return;
+          const blob = await resizeImage(f, 2560);
+          tool = { blob, img: await S.loadImage(blob), opt: { ...M.defaultStamp(), qr: false }, title: '', notes: '', point: null, acc: null, manual: false, takenAt: f.lastModified || now() };
+          // ตำแหน่งตอนนี้ใส่ให้เลยถ้ารู้แล้ว (แก้ได้)
+          if (here) Object.assign(tool, { point: { lat: here.lat, lon: here.lon }, acc: here.acc });
+          render();
+        }));
+      },
+    };
+  }
+  const t = tool;
+  return {
+    html: `${header(tr('ใส่พิกัด GPS บนรูป', 'Put GPS on a photo'), { right: `<button class="chip" data-act="toolreset">${tr('รูปใหม่', 'New photo')}</button>` })}
+    <main>
+      <label class="field">${tr('ชื่อ', 'Title')}<input id="ttitle" value="${esc(t.title)}" placeholder="${tr('เช่น สวนมะม่วงหลังบ้าน', 'e.g. mango orchard behind the house')}"></label>
+      <div class="card"><b>📍 ${tr('ตำแหน่ง', 'Location')}</b>
+        <p class="coords" id="loc">${t.point ? `${G.formatCoordinates(t.point)}${t.acc != null ? ` ±${Math.round(t.acc)} m` : ''}` : tr('ยังไม่มีพิกัด', 'No location yet')}</p>
+        <div class="row">
+          <button class="btn" data-act="toolgps">📡 ${tr('ใช้ตำแหน่งตอนนี้', 'Use my location')}</button>
+          <button class="btn" data-act="toolpickmap">🗺️ ${tr('ปักบนแผนที่', 'Pick on map')}</button>
+          <button class="btn" data-act="toolpaste">📋 ${tr('วางพิกัด', 'Paste')}</button>
+        </div>
+      </div>
+      <label class="field">${tr('รายละเอียด', 'Details')}<textarea id="tnotes" rows="2">${esc(t.notes)}</textarea></label>
+      ${stampPanel(t.opt, !!t.point)}
+      <div class="card"><b>💾 ${tr('เก็บไว้ใน PinKeep ด้วย', 'Also keep it in PinKeep')}</b>
+        <div class="row"><select id="tkind">${M.STANDALONE.map((k) => `<option value="${k}">${M.KINDS[k].symbol} ${M.KINDS[k].label()}</option>`).join('')}</select>
+        <button class="btn" data-act="toolkeep">${tr('เก็บเป็นรายการ', 'Save as item')}</button></div>
+      </div>
+    </main>`,
+    mount() {
+      const info = () => ({ title: t.title, point: t.point, acc: t.acc, takenAt: t.takenAt, notes: t.notes, watermark: PRO ? null : S.WATERMARK });
+      bindStamp(t.opt, () => t.img, info, (rerender) => { if (rerender) render(); });
+      const redraw = () => { const out = S.render(t.img, t.opt, info()); const pv = document.getElementById('preview'); pv.width = out.width; pv.height = out.height; pv.getContext('2d').drawImage(out, 0, 0); };
+      document.getElementById('ttitle').addEventListener('input', (e) => { t.title = e.target.value; redraw(); });
+      document.getElementById('tnotes').addEventListener('input', (e) => { t.notes = e.target.value; redraw(); });
+    },
+  };
+};
+
 // ---------------------------------------------------------------- ปุ่มต่าง ๆ
 const actions = {
   back,
@@ -636,9 +779,14 @@ const actions = {
     render();
   },
   usepick: () => {
-    if (!editor?.pick) return;
-    Object.assign(editor.mark, { latitude: editor.pick.lat, longitude: editor.pick.lon, accuracyMeters: null, manual: true });
-    delete editor.pick; back();
+    if (!pickTarget?.picked) return;
+    pickTarget.apply(pickTarget.picked); pickTarget = null; back();
+  },
+  pickedit: () => {
+    const mk = editor.mark;
+    pickTarget = { point: M.hasLocation(mk) ? M.pointOf(mk) : null, symbol: M.KINDS[mk.kind].symbol, siteId: mk.siteId,
+      apply: (p) => Object.assign(editor.mark, { latitude: p.lat, longitude: p.lon, accuracyMeters: null, manual: true }) };
+    go('#/pick');
   },
   delphoto: (i) => { editor.mark.photos.splice(Number(i), 1); render(); },
   cancel: () => { const wasNew = editor?.isNew; editor = null; if (wasNew) DB.deleteOrphans(M.referencedFiles(data)); back(); },
@@ -653,6 +801,40 @@ const actions = {
     editor = null; await save(); DB.deleteOrphans(M.referencedFiles(data));
     toast(tr('บันทึกแล้ว', 'Saved'));
     if (wasNew) location.replace(`#/mark/${mk.id}`); else back();
+  },
+  shareimg: () => shareImage(false),
+  downloadimg: () => shareImage(true),
+  toolreset: () => { tool = null; render(); },
+  toolgps: async () => {
+    const loc = document.getElementById('loc');
+    try {
+      const fix = await captureGps((best, s) => { loc.textContent = `${tr('กำลังอ่าน GPS', 'Reading GPS')} ${s}s · ±${Math.round(best.acc)} m`; });
+      Object.assign(tool, { point: { lat: fix.lat, lon: fix.lon }, acc: fix.acc, manual: false }); here = fix; render();
+    } catch (e) { loc.textContent = e.message; }
+  },
+  toolpaste: () => {
+    const typed = prompt(tr('วางพิกัดหรือลิงก์ Google Maps', 'Paste coordinates or a Google Maps link'), '');
+    if (typed == null) return;
+    const p = G.parseCoordinates(typed);
+    if (!p) { toast(tr('อ่านพิกัดไม่ได้', 'Could not read coordinates')); return; }
+    Object.assign(tool, { point: p, acc: null, manual: true }); render();
+  },
+  toolpickmap: () => {
+    pickTarget = { point: tool.point, symbol: '📷', siteId: null, apply: (p) => Object.assign(tool, { point: p, acc: null, manual: true }) };
+    go('#/pick');
+  },
+  toolkeep: async () => {
+    const kind = document.getElementById('tkind').value, t = tool, ts = now();
+    const blob = await resizeImage(t.blob, 1600);
+    const name = M.newMediaName('photo', 'jpg');
+    await DB.putMedia(name, blob);
+    const count = M.standaloneOf(data, kind).length;
+    const mk = { id: M.newId(), siteId: null, kind, label: t.title.trim() || `${M.KINDS[kind].prefix()} ${count + 1}`,
+      latitude: t.point?.lat ?? null, longitude: t.point?.lon ?? null, accuracyMeters: t.acc != null ? Math.round(t.acc * 10) / 10 : null,
+      manual: !!t.manual, draft: false, notes: t.notes, createdAt: ts, updatedAt: ts,
+      photos: [{ file: name, takenAt: t.takenAt, stamp: structuredClone(t.opt) }], voices: [] };
+    data.marks.push(mk); await save(); tool = null;
+    toast(tr('เก็บแล้ว', 'Saved')); go(`#/mark/${mk.id}`);
   },
   import: (mode) => confirmImport(mode),
   cancelimport: () => { incoming = null; go('#/'); },
@@ -697,6 +879,7 @@ async function init() {
   render();
   watchHere();
   DB.persist();
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // ไม่ใช้แคชตอนทดสอบบนเครื่อง ไม่งั้นแก้ไฟล์แล้วยังได้ของเก่า
+  if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 init();

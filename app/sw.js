@@ -1,8 +1,9 @@
 // แคชไฟล์แอปให้เปิดได้แม้ไม่มีเน็ต · แก้ไฟล์แอปแล้วต้องเปลี่ยน CACHE ไม่งั้นเครื่องผู้ใช้ยังได้ไฟล์เก่า
-const CACHE = 'pinkeep-web-0.1.0';
+const CACHE = 'pinkeep-web-0.2.0';
 const SHELL = [
   './', 'index.html', 'app.css', 'manifest.webmanifest',
-  'js/app.js', 'js/model.js', 'js/geo.js', 'js/db.js',
+  'js/app.js', 'js/model.js', 'js/geo.js', 'js/db.js', 'js/stamp.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
   'icons/icon-192.png', 'icons/apple-touch-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',

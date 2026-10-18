@@ -104,4 +104,16 @@ audio { width: 100%; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 .missing { opacity: .2; }
 
+.stampcard { flex-direction: row; align-items: center; gap: 14px; min-height: 0; background: #3b3552; border-color: #534a73; }
+.stampcard small { display: block; color: #d6d0ea; font-size: 14px; margin-top: 2px; }
+.stamp canvas { width: 100%; height: auto; border-radius: 12px; background: #000; display: block; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.checks label, .switch { display: inline-flex; align-items: center; gap: 6px; }
+.checks .off { opacity: .4; }
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--green); }
+input[type=range] { width: 100%; accent-color: var(--green); }
+select { font: inherit; color: var(--ink); background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; flex: 1 1 140px; }
+.photos a { display: block; }
+.photos .badge { position: absolute; right: 6px; bottom: 6px; font-size: 16px; background: rgba(0, 0, 0, .55); border-radius: 8px; padding: 1px 5px; }
+
 @media (min-width: 640px) { .grid { grid-template-columns: repeat(4, 1fr); } }
