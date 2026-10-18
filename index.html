@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignalWalk — Wi‑Fi site survey · สำรวจสัญญาณ Wi‑Fi</title>
+<meta name="description" content="Android Wi‑Fi site survey app: measure point by point, build heatmaps, locate APs and email PDF reports. แอปสำรวจสัญญาณ Wi‑Fi สำหรับช่างไอที">
+<meta property="og:title" content="SignalWalk — Wi‑Fi site survey">
+<meta property="og:description" content="Measure Wi‑Fi point by point, build heatmaps, locate APs and email PDF reports. · วัด Wi‑Fi ทีละจุด ทำ heatmap หาตำแหน่ง AP ส่งรายงาน PDF">
+<meta property="og:image" content="img/01-quick-check.png">
+<link rel="icon" href="img/icon.png">
+<link rel="alternate" hreflang="th" href="?lang=th">
+<link rel="alternate" hreflang="en" href="?lang=en">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1524; --panel: #12233a; --panel-2: #172c48; --line: #223a5a;
+    --ink: #eef3f9; --muted: #9fb3c8; --green: #2e7d32;
+    --gold: #facc15; --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  /* แสดงเฉพาะภาษาที่เลือก — ทั้งสองภาษาอยู่ในหน้า ไม่ต้องโหลดใหม่ตอนสลับ */
+  html[lang="th"] .en, html[lang="en"] .th { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 17px/1.7 "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif; }
+  a { color: var(--blue); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  /* ติดมุมขวาบนตลอด เลื่อนหน้าแล้วยังกดสลับภาษาได้ */
+  .langbar { position: fixed; top: 14px; right: 16px; z-index: 10; display: flex; gap: 4px;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px;
+             box-shadow: 0 6px 20px #0009; }
+  .langbar button { font: inherit; font-size: 15px; font-weight: 700; color: var(--muted); background: transparent;
+                    border: 0; border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+  .langbar button:hover { color: var(--ink); }
+  .langbar button[aria-pressed="true"] { background: var(--blue); color: #0b1524; }
+
+  header { padding: 64px 0 40px; text-align: center; }
+  header img.logo { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 10px 30px #0008; }
+  h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.2; margin: 18px 0 6px; }
+  .tagline { font-size: clamp(18px, 3vw, 22px); color: var(--muted); margin: 0 auto 28px; max-width: 640px; }
+  .cta { display: inline-flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn { display: inline-block; padding: 14px 26px; border-radius: 999px; font-weight: 700;
+         text-decoration: none; border: 1px solid transparent; }
+  .btn.primary { background: var(--green); color: #fff; }
+  .btn.ghost { border-color: var(--line); color: var(--ink); }
+  button.btn { font: inherit; font-weight: 700; cursor: pointer; }
+  button.btn.ghost { background: transparent; }
+  .note { color: var(--muted); font-size: 14px; margin-top: 14px; }
+  .join { max-width: 560px; margin: 20px auto 0; background: var(--panel); border: 1px solid var(--line);
+          border-radius: 16px; padding: 18px 20px; }
+  .join p { margin: 0 0 14px; }
+  .join-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .join-actions .btn { padding: 10px 18px; font-size: 15px; }
+
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(24px, 4vw, 32px); margin: 0 0 8px; text-align: center; }
+  .lead { text-align: center; color: var(--muted); margin: 0 auto 32px; max-width: 680px; }
+
+  .shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .shots img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); display: block; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 19px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .card .icon { font-size: 26px; }
+
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 820px; margin: 0 auto; }
+  .plan { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px; }
+  .plan.pro { background: var(--panel-2); border-color: var(--gold); }
+  .plan h3 { margin: 0; font-size: 22px; }
+  .plan .price { font-size: 28px; font-weight: 700; margin: 6px 0 14px; }
+  .plan .price small { font-size: 15px; color: var(--muted); font-weight: 400; }
+  .plan ul { margin: 0; padding-left: 20px; }
+  .plan li { margin: 4px 0; }
+  .badge { display: inline-block; background: var(--gold); color: #0b1524; font-weight: 700;
+           font-size: 13px; padding: 2px 10px; border-radius: 6px; margin-left: 8px; vertical-align: middle; }
+
+  .points { max-width: 760px; margin: 0 auto; display: grid; gap: 12px; }
+  .points div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; text-align: center; color: var(--muted); font-size: 14px; }
+  footer a { margin: 0 10px; }
+
+  @media (max-width: 860px) {
+    .shots { grid-template-columns: repeat(2, 1fr); }
+    .features { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .features, .plans { grid-template-columns: 1fr; }
+    header { padding-top: 64px; }
+  }
+</style>
+<script>
+  // เลือกภาษาก่อนวาดหน้า กันหน้ากะพริบ: ?lang= → ที่ผู้ใช้เคยกดเลือก → ค่าเริ่มต้นภาษาอังกฤษ
+  (function () {
+    var lang = null;
+    try { lang = new URLSearchParams(location.search).get('lang'); } catch (e) {}
+    // ใช้ชื่อคีย์ใหม่ — รุ่นก่อนจำภาษาของเครื่องไว้ให้อัตโนมัติ ถ้าใช้คีย์เดิม เครื่องภาษาไทยจะยังเห็นหน้าไทย
+    if (lang !== 'th' && lang !== 'en') { try { lang = localStorage.getItem('sw-lang-choice'); } catch (e) {} }
+    if (lang !== 'th' && lang !== 'en') lang = 'en';
+    document.documentElement.lang = lang;
+  })();
+</script>
+</head>
+<body>
+
+<nav class="langbar" aria-label="Language">
+  <button type="button" data-lang="en">EN</button>
+  <button type="button" data-lang="th">ไทย</button>
+</nav>
+
+<header class="wrap">
+  <img class="logo" src="img/icon.png" alt="SignalWalk">
+  <h1>SignalWalk</h1>
+  <p class="tagline">
+    <span class="th">สำรวจสัญญาณ Wi‑Fi ทีละจุด ทำ heatmap หาตำแหน่ง AP แล้วส่งรายงาน PDF ให้ลูกค้า จบในมือถือเครื่องเดียว</span>
+    <span class="en">Measure Wi‑Fi spot by spot, build heatmaps, locate access points and email your customer a PDF report — all from one phone.</span>
+  </p>
+  <div class="cta">
+    <!-- เปิดขายแล้วเปลี่ยนเป็นปุ่มเดียว: ดาวน์โหลดบน Google Play -->
+    <button class="btn primary" type="button" id="joinBtn" aria-expanded="false" aria-controls="joinBox">
+      <span class="th">สมัครร่วมทดสอบ (ฟรี)</span><span class="en">Join the free beta</span>
+    </button>
+    <a class="btn ghost" href="#features"><span class="th">ดูความสามารถ</span><span class="en">See features</span></a>
+  </div>
+  <!-- mailto: อย่างเดียวใช้ไม่ได้บนคอมที่ไม่ได้ตั้งโปรแกรมอีเมล จึงมีให้เลือก 3 ทาง -->
+  <div class="join" id="joinBox" hidden>
+    <p class="th">ส่งอีเมลถึง <strong>signalwalk.app@gmail.com</strong><br>บอก <strong>Gmail ที่ใช้กับมือถือ Android</strong> แล้วผู้พัฒนาจะส่งลิงก์ติดตั้งให้</p>
+    <p class="en">Email <strong>signalwalk.app@gmail.com</strong><br>with the <strong>Gmail address on your Android phone</strong> and you'll get an install link.</p>
+    <div class="join-actions">
+      <a class="btn primary" id="gmailLink" target="_blank" rel="noopener" href="#"><span class="th">เปิดใน Gmail</span><span class="en">Open in Gmail</span></a>
+      <a class="btn ghost" id="mailLink" href="#"><span class="th">เปิดแอปอีเมล</span><span class="en">Open email app</span></a>
+      <button class="btn ghost" type="button" id="copyBtn"><span class="th">คัดลอกอีเมล</span><span class="en">Copy email</span></button>
+    </div>
+  </div>
+  <p class="note">
+    <span class="th">กำลังทดสอบบน Google Play · Android 8.0 ขึ้นไป</span>
+    <span class="en">In testing on Google Play · Android 8.0 or later</span>
+  </p>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="shots">
+      <img data-shot="01-quick-check.png" src="img/01-quick-check.png" alt="Quick check" loading="lazy">
+      <img data-shot="02-pdf-report.png" src="img/02-pdf-report.png" alt="PDF report" loading="lazy">
+      <img data-shot="03-networks.png" src="img/03-networks.png" alt="Networks and MACs" loading="lazy">
+      <img data-shot="05-email.png" src="img/05-email.png" alt="Email report" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2><span class="th">ทำอะไรได้บ้าง</span><span class="en">What it does</span></h2>
+    <p class="lead">
+      <span class="th">ออกแบบสำหรับช่างไอที ผู้ติดตั้งเครือข่าย และเจ้าของสำนักงานหรือร้านค้า</span>
+      <span class="en">Built for IT technicians, network installers and office or shop owners.</span>
+    </p>
+    <div class="features">
+      <div class="card"><div class="icon">📍</div>
+        <h3><span class="th">วัดจุดเดียว</span><span class="en">Quick check</span></h3>
+        <p class="th">ยืนตรงจุดที่ลูกค้าบ่น กดปุ่มเดียว รู้ทันทีว่า 2.4 และ 5 GHz แรงแค่ไหน ผ่านเกณฑ์โทร/วิดีโอคอล (−67 dBm) หรือไม่</p>
+        <p class="en">Stand where the customer complains and tap once: see 2.4 and 5 GHz strength and whether it meets the −67 dBm target for calls and video.</p></div>
+      <div class="card"><div class="icon">🗺️</div>
+        <h3><span class="th">Heatmap ทั้งอาคาร</span><span class="en">Whole-building heatmap</span></h3>
+        <p class="th">วาดแปลนหรือนำเข้าภาพแปลน เดินวัดหลายจุด เห็นสัญญาณทั้งพื้นที่ พร้อมเส้นระดับสัญญาณและตำแหน่ง AP ที่คำนวณได้</p>
+        <p class="en">Sketch or import a floor plan, measure many points, and see coverage everywhere with contour lines and the estimated AP position.</p></div>
+      <div class="card"><div class="icon">🛰️</div>
+        <h3><span class="th">งานภายนอก บนแผนที่จริง</span><span class="en">Outdoor, on real maps</span></h3>
+        <p class="th">ปักหมุดบน Google Maps หรือใช้ภาพดาวเทียมเป็นแปลน ผูกพิกัด 2 จุด แล้ววางจุดวัดตามพิกัดให้เอง</p>
+        <p class="en">Pin points on Google Maps, or use a satellite image as the plan: link 2 points to GPS and measurements are placed automatically.</p></div>
+      <div class="card"><div class="icon">📶</div>
+        <h3><span class="th">วิเคราะห์ช่องสัญญาณ</span><span class="en">Channel analysis</span></h3>
+        <p class="th">ดูว่าเพื่อนบ้านแย่งช่องไหน แล้วแนะนำช่องที่ว่างกว่า (2.4 GHz: 1/6/11 · 5 GHz: ช่องที่ไม่ใช่ DFS)</p>
+        <p class="en">See which channels neighbours crowd and get a quieter recommendation (2.4 GHz: 1/6/11 · 5 GHz: non‑DFS).</p></div>
+      <div class="card"><div class="icon">🎯</div>
+        <h3><span class="th">วัดแม่น ไม่หลอกตัวเอง</span><span class="en">Honest measurements</span></h3>
+        <p class="th">เก็บหลายรอบต่อจุด นับเฉพาะค่าที่สแกนใหม่ จุดที่ค่าแกว่งหรือตัวอย่างน้อยจะถูกติดป้ายให้วัดซ้ำ</p>
+        <p class="en">Several samples per point, fresh scans only. Points that fluctuate or have too few samples are flagged for re‑measuring.</p></div>
+      <div class="card"><div class="icon">📄</div>
+        <h3><span class="th">รายงานพร้อมส่งลูกค้า</span><span class="en">Customer-ready reports</span></h3>
+        <p class="th">PDF, PNG, CSV (Excel) และ JSON ส่งผ่าน Gmail พร้อมไฟล์แนบ มีลิงก์ Google Maps ของทุกจุด เลือกภาษาไทยหรืออังกฤษ</p>
+        <p class="en">PDF, PNG, CSV (Excel) and JSON, emailed through Gmail with a Google Maps link for every point, in English or Thai.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <h2><span class="th">ราคา</span><span class="en">Pricing</span></h2>
+    <p class="lead">
+      <span class="th">ใช้ฟรีได้เลย อัปเกรดเป็น Pro เมื่อต้องส่งงานลูกค้าในนามบริษัท</span>
+      <span class="en">Free to use. Upgrade to Pro when you deliver reports to customers under your company name.</span>
+    </p>
+    <div class="plans">
+      <div class="plan">
+        <h3><span class="th">ฟรี</span><span class="en">Free</span></h3>
+        <div class="price">฿0</div>
+        <ul class="th">
+          <li>วัดจุดเดียวไม่จำกัด</li>
+          <li>Heatmap และวิเคราะห์ช่องสัญญาณ</li>
+          <li>ส่งรายงาน PDF / รูปทางอีเมล (มีลายน้ำ)</li>
+          <li>บันทึกได้ 15 จุดต่อโครงการ</li>
+          <li>สำรอง/ย้ายโครงการด้วยไฟล์ JSON</li>
+        </ul>
+        <ul class="en">
+          <li>Unlimited quick checks</li>
+          <li>Heatmaps and channel analysis</li>
+          <li>PDF / image reports by email (watermarked)</li>
+          <li>15 points per project</li>
+          <li>Project backup and transfer as JSON</li>
+        </ul>
+      </div>
+      <div class="plan pro">
+        <h3>Pro <span class="badge">PRO</span></h3>
+        <div class="price">
+          <span class="th">฿790 <small>/ ปี</small> · ฿1,590 <small>ซื้อขาด</small></span>
+          <span class="en">฿790 <small>/ year</small> · ฿1,590 <small>one‑time</small></span>
+        </div>
+        <ul class="th">
+          <li>รายงานไม่มีลายน้ำ</li>
+          <li>วัดได้ไม่จำกัดจุด</li>
+          <li>ประมาณตำแหน่ง AP</li>
+          <li>รายงานแสดงทุกเครือข่ายและทุก MAC</li>
+          <li>เลือกภาษารายงาน · CSV ราย MAC · JSON ผลวัดจุดเดียว</li>
+        </ul>
+        <ul class="en">
+          <li>No watermark on reports</li>
+          <li>Unlimited points</li>
+          <li>Estimated AP position</li>
+          <li>Every network and MAC in reports</li>
+          <li>Report language choice · per‑MAC CSV · quick‑check JSON</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note" style="text-align:center">
+      <span class="th">ชำระผ่าน Google Play · ยกเลิกรายปีได้ทุกเมื่อใน Play Store</span>
+      <span class="en">Paid through Google Play · cancel the yearly plan anytime in the Play Store. Prices outside Thailand are shown in your local currency.</span>
+    </p>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <h2><span class="th">ข้อมูลอยู่ในเครื่องคุณ</span><span class="en">Your data stays on your phone</span></h2>
+    <div class="points">
+      <div><span class="th">ไม่มีบัญชีผู้ใช้ ไม่มีโฆษณา ไม่มีเซิร์ฟเวอร์ของเราเก็บข้อมูล</span>
+           <span class="en">No account, no ads, no server of ours storing your data.</span></div>
+      <div><span class="th">ขอสิทธิ์ตำแหน่งเพราะ Android บังคับให้ต้องมีจึงจะอ่านรายชื่อ Wi‑Fi ได้ และไม่ใช้ตำแหน่งขณะทำงานเบื้องหลัง</span>
+           <span class="en">Location permission is needed only because Android requires it to read the Wi‑Fi list; it is never used in the background.</span></div>
+      <div><span class="th">รายงานส่งจากบัญชี Gmail ของคุณเอง แอปไม่เห็นรหัสผ่าน</span>
+           <span class="en">Reports are sent from your own Gmail account; the app never sees your password.</span></div>
+    </div>
+    <p class="note" style="text-align:center">
+      <a href="privacy-policy.html"><span class="th">อ่านนโยบายความเป็นส่วนตัว</span><span class="en">Read the privacy policy</span></a>
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>SignalWalk · <span class="th">ผู้พัฒนา</span><span class="en">Developer:</span> Chokchai Chunprasang</p>
+    <p><a href="mailto:signalwalk.app@gmail.com">signalwalk.app@gmail.com</a><a href="privacy-policy.html">Privacy Policy</a></p>
+  </div>
+</footer>
+
+<script>
+  var EMAIL = 'signalwalk.app@gmail.com';
+  var TEXT = {
+    th: { subject: 'ขอร่วมทดสอบ SignalWalk', body: 'Gmail ที่ใช้กับมือถือ Android: ', copied: 'คัดลอกแล้ว ✓' },
+    en: { subject: 'Join the SignalWalk beta', body: 'Gmail on my Android phone: ', copied: 'Copied ✓' }
+  };
+
+  // จำภาษาเฉพาะตอนผู้ใช้กดเลือกเอง — ตอนเปิดหน้าไม่จำ ค่าเริ่มต้นจะได้เป็นภาษาอังกฤษจริง
+  function setLang(lang, remember) {
+    document.documentElement.lang = lang;
+    if (remember) { try { localStorage.setItem('sw-lang-choice', lang); } catch (e) {} }
+    document.querySelectorAll('.langbar button').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
+    });
+    // ภาพหน้าจอ: หัวข้อในภาพเป็นภาษาเดียวกับหน้า
+    document.querySelectorAll('img[data-shot]').forEach(function (img) {
+      img.src = (lang === 'en' ? 'img/en/' : 'img/') + img.dataset.shot;
+    });
+    var t = TEXT[lang];
+    document.getElementById('gmailLink').href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + EMAIL +
+      '&su=' + encodeURIComponent(t.subject) + '&body=' + encodeURIComponent(t.body);
+    document.getElementById('mailLink').href = 'mailto:' + EMAIL +
+      '?subject=' + encodeURIComponent(t.subject) + '&body=' + encodeURIComponent(t.body);
+    document.title = lang === 'en' ? 'SignalWalk — Wi‑Fi site survey' : 'SignalWalk — สำรวจสัญญาณ Wi‑Fi';
+  }
+
+  document.querySelectorAll('.langbar button').forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.dataset.lang, true); });
+  });
+  setLang(document.documentElement.lang === 'th' ? 'th' : 'en');
+
+  var joinBtn = document.getElementById('joinBtn');
+  var joinBox = document.getElementById('joinBox');
+  joinBtn.addEventListener('click', function () {
+    joinBox.hidden = !joinBox.hidden;
+    joinBtn.setAttribute('aria-expanded', String(!joinBox.hidden));
+  });
+
+  var copyBtn = document.getElementById('copyBtn');
+  var copyHtml = copyBtn.innerHTML;
+  copyBtn.addEventListener('click', function () {
+    function done() {
+      copyBtn.textContent = TEXT[document.documentElement.lang].copied;
+      setTimeout(function () { copyBtn.innerHTML = copyHtml; }, 2000);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(EMAIL).then(done, fallback);
+    } else fallback();
+    function fallback() {
+      // เบราว์เซอร์เก่า/ไม่อนุญาตคลิปบอร์ด — ใช้วิธีเลือกข้อความแทน
+      var field = document.createElement('textarea');
+      field.value = EMAIL; document.body.appendChild(field); field.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      field.remove(); done();
+    }
+  });
+</script>
+</body>
+</html>
