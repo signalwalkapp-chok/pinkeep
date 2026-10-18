@@ -1,0 +1,16 @@
+{
+  "name": "PinKeep – เก็บหมุดที่ดิน",
+  "short_name": "PinKeep",
+  "description": "เก็บพิกัดหลักหมุดที่ดิน บ้าน ร้าน และสถานที่ พร้อมรูป แล้วเดินกลับไปหาด้วยเข็มทิศ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1a14",
+  "theme_color": "#14231a",
+  "lang": "th",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
